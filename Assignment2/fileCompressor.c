@@ -1007,8 +1007,8 @@ int main(int argc, char** argv){
     bool compress = false;
     bool decompress = false;
     bool filePathSeen = false;
-    char* filePath = malloc(sizeof(char) * 1000);
-    char* huffmanFilePath = malloc(sizeof(char) * 1000);
+    char* filePath = malloc(sizeof(char) * 4096);
+    char* huffmanFilePath = malloc(sizeof(char) * 4096);
     //File paths may only be relative paths as of now !! IMPORTANT
     int i;
     bool flags = true;
