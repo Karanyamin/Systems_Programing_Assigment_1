@@ -1,12 +1,12 @@
 all: fileCompressor
 
-firstCompressor: fileCompressor.c
+fileCompressor: fileCompressor.c
 	gcc -g fileCompressor.c -o fileCompressor
-
-clean: codebook 
-	find . -name "*.hcz" -type f -delete
-
-codebook:
+clean: 
+	rm -f ./fileCompressor
+cleanA: hcz
 	rm -f ./HuffmanCodebook
+hcz:
+	find . -name "*.hcz" -type f -delete
 
 	

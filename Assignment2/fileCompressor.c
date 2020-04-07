@@ -6,8 +6,13 @@
 #include <dirent.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
 
-
+typedef struct Hashnode{
+    char* str;
+    char* code;
+    int occurrences;
+}Hashnode;
 
 typedef struct HuffmanTree {
     int occurrences;
@@ -39,16 +44,166 @@ typedef struct HuffmanMinHeap{
     //char** items;
 } HuffmanMinHeap;
 
+Hashnode * hashtable;
+long long sizeofHashTable = 500;
+long long itemsInHashTable = 0;
 HuffmanMinHeap * heap;
 node * totalItems;
 HeapNode * codeTree;
-int sizeofstring = 0;
-int numOfItems = 0;
+int sizeofstring = 256;
+int numOfItems = 5458199;
+char escapecharacter = '!';
 
 void printHuffmanCode(HeapNode* temp, char* str, int fd);
 bool isFile(char* path);
+long long compute_hash(char* str);
+void insertHashtable(char* str, int occurrence, char* code);
 
 int level = 0;
+
+void freeHash(Hashnode* ptr, long long num){
+    int i;
+    for(i = 0; i < num; i++){
+        free(ptr[i].code);
+        free(ptr[i].str);
+    }
+    free(ptr);
+}
+
+void rehash(){
+    long long oldvalue = sizeofHashTable;
+    sizeofHashTable *= sizeofHashTable;
+    Hashnode * realloced = malloc(sizeof(Hashnode) * sizeofHashTable);
+    if (realloced != NULL){
+        int i;
+        for(i = 0; i < sizeofHashTable; i++){
+            realloced[i].str = malloc(sizeof(char) * sizeofstring);
+            realloced[i].code = malloc(sizeof(char) * sizeofstring);
+            bzero(realloced[i].str, sizeofstring * sizeof(char));
+            bzero(realloced[i].code, sizeofstring * sizeof(char));
+        }
+        Hashnode* oldHashTable = hashtable;
+        hashtable = realloced;
+        itemsInHashTable = 0;
+        for (i = 0; i < oldvalue; i++) {
+            insertHashtable(oldHashTable[i].str, oldHashTable[i].occurrences, oldHashTable[i].code);
+        }
+
+        freeHash(oldHashTable, oldvalue);
+    } else {
+        printf("ERROR IN REHASHING\n");
+        exit(1);
+    }
+}
+
+void intializeHashTable(){
+    hashtable = malloc(sizeof(Hashnode) * sizeofHashTable);
+    int i;
+    for(i = 0; i < sizeofHashTable; i++){
+        hashtable[i].str = malloc(sizeof(char) * sizeofstring);
+        hashtable[i].code = malloc(sizeof(char) * sizeofstring);
+        bzero(hashtable[i].str, sizeofstring * sizeof(char));
+        bzero(hashtable[i].code, sizeofstring * sizeof(char));
+    }
+}
+
+bool searchHashtableAndUpdate(char* str, int occurrence){
+    long long index = compute_hash(str);
+    int i;
+    for ( i = index; i < sizeofHashTable; i++)
+    {
+        if (strcmp(hashtable[i].str, str) == 0){
+            hashtable[i].occurrences += occurrence;
+            return true;
+        }
+    }
+    for ( i = 0; i < index; i++)
+    {
+        if (strcmp(hashtable[i].str, str) == 0){
+            hashtable[i].occurrences += occurrence;
+            return true;
+        }
+    }
+    return false;
+}
+
+Hashnode* searchHashtable(char* str){
+    long long index = compute_hash(str);
+    int i;
+    for ( i = index; i < sizeofHashTable; i++)
+    {
+        if (strcmp(hashtable[i].str, str) == 0){
+            Hashnode* temp = malloc(sizeof(Hashnode));
+            temp->str = malloc(sizeof(char) * sizeofstring);
+            temp->code = malloc(sizeof(char) * sizeofstring);
+            temp->occurrences = hashtable[i].occurrences;
+            strcpy(temp->str, hashtable[i].str);
+            strcpy(temp->code, hashtable[i].code);
+            return temp;
+        }
+    }
+    for ( i = 0; i < index; i++)
+    {
+        if (strcmp(hashtable[i].str, str) == 0){
+            Hashnode* temp = malloc(sizeof(Hashnode));
+            temp->str = malloc(sizeof(char) * sizeofstring);
+            temp->code = malloc(sizeof(char) * sizeofstring);
+            temp->occurrences = hashtable[i].occurrences;
+            strcpy(temp->str, hashtable[i].str);
+            strcpy(temp->code, hashtable[i].code);
+            return temp;
+        }
+    }
+    printf("The string [%s] is not in the table\n", str);
+    return NULL;
+}
+
+void insertHashtable(char* str, int occurrence, char* code){
+    double loadfactor = (double)itemsInHashTable/sizeofHashTable;
+    if (loadfactor > 0.50){
+        rehash();
+    }
+
+    long long index = compute_hash(str);
+
+    int i;
+    for (i = index; i < sizeofHashTable; i++){
+        if (strlen(hashtable[i].str) == 0){
+            strcpy(hashtable[i].str, str);
+            strcpy(hashtable[i].code, code);
+            hashtable[i].occurrences = occurrence;
+            itemsInHashTable++;
+            return;
+        }
+    }
+    for (i = 0; i < index; i++){
+        if (strlen(hashtable[i].str) == 0){
+            strcpy(hashtable[i].str, str);
+            strcpy(hashtable[i].code, code);
+            hashtable[i].occurrences = occurrence;
+            itemsInHashTable++;
+            return;
+        }
+    }
+    printf("THE HASH TABLE IS FULL NIGGA\n");
+    exit(1);
+}
+
+long long compute_hash(char* str) {
+    const int p = 41;
+    const int m = sizeofHashTable;
+    long long hash_value = 0;
+    long long p_pow = 1;
+    int i;
+    for (i = 0; i < strlen(str); i++) {
+        hash_value = (hash_value + (str[i] - '\0' + 1) * p_pow) % m;
+        if (hash_value < 0){
+            hash_value += sizeofHashTable;
+        }
+        p_pow = (p_pow * p) % m;
+    }
+    return hash_value;
+}
 
 bool isTxt(char* file){
     int length1 = strlen(file);
@@ -178,7 +333,7 @@ bool heapHasMoreThanOne(){
 void intializeMinHeap(){
     heap = malloc(sizeof(HuffmanMinHeap));
     heap->numberOfItems = 0;
-    heap->size = numOfItems;
+    heap->size = numOfItems; //Change it back to numOfItems !!
     heap->items = malloc(sizeof(HeapNode) * heap->size);
     //heap->items = malloc(sizeof(char*) * 100);
     HeapNode* temp = heap->items;
@@ -338,6 +493,7 @@ void freelist(node * sort){
 }
 
 bool listContainsAndUpdates(char* str, node * ptr, int num){
+    /*
     while (ptr != NULL){
         if (strcmp(str, ptr->data) == 0){
             ptr->occurrences += num;
@@ -348,32 +504,60 @@ bool listContainsAndUpdates(char* str, node * ptr, int num){
         }
     }
     return false;
+    */
+   HeapNode* temp = heap->items;
+   int i;
+   for ( i = 0; i < heap->numberOfItems; i++)
+   {
+       if (strcmp(str, temp[i].str) == 0){
+           temp[i].occurrences += num;
+           return true;
+       }
+   }
+   return false;
+
 }
 
 node * populateTokenList(char* filepath, bool noDuplicatesInList){
-    node * sort = malloc(sizeof(node));
-    sort->data = malloc(sizeof(char) * 1000);
-    sort->code = malloc(sizeof(char) * 1000);
-    sort->occurrences = 0;
-    bzero(sort->data, sizeof(char) * 1000);
-    bzero(sort->code, sizeof(char) * 1000);
-    sort->prev = NULL;
-    sort->next = NULL;
-    node * ptr = sort;
+    
+
+    node * sort = NULL;
+    node * ptr = NULL;
+    
+    if (!noDuplicatesInList){
+        sort = malloc(sizeof(node));
+        sort->data = malloc(sizeof(char) * sizeofstring);
+        sort->code = malloc(sizeof(char) * sizeofstring);
+        sort->occurrences = 0;
+        bzero(sort->data, sizeof(char) * sizeofstring);
+        bzero(sort->code, sizeof(char) * sizeofstring);
+        sort->prev = NULL;
+        sort->next = NULL;
+        ptr = sort;
+    }
+   
+    
 	int fd = open(filepath, O_RDONLY);
 	if (fd == -1){
         printf("Error opening file, EXITTING PROGRAM\n");
-        freelist(sort);
+        //freelist(sort);
         return;
 	}
-	char buffer = '!';
+	char* bufferstr = malloc(sizeof(char) * 1000);
+    char buffer = '\0';
+    int bufferread = 0;
     int readed = 0;
-    char* str = malloc(sizeof(char) * 1000);
+    char* str = malloc(sizeof(char) * sizeofstring);
     str[0] = '\0';
     bool emptyFileCheck = true;
     int i = 0;
     do{
-        readed = read(fd, &buffer, 1);
+        do{
+            readed = read(fd, bufferstr+bufferread, 1000-bufferread);
+            bufferread += readed;
+        } while (bufferread != 1000 && readed != 0);
+        
+        /*
         if (emptyFileCheck){
             if (readed == 0) { //First check of file and the file is empty
                 printf("The file given is empty, EXITTING PROGRAM\n");
@@ -384,8 +568,9 @@ node * populateTokenList(char* filepath, bool noDuplicatesInList){
                 emptyFileCheck = false;
             }
         }
-
-        if (readed != 0){
+        */
+        for (i = 0; i < bufferread; i++){
+            buffer = bufferstr[i];
             if (buffer != ' ' && buffer != '\n' && buffer != '\t'){
                 char* temp = malloc(sizeof(char) * 2);
                 temp[0] = buffer;
@@ -393,77 +578,55 @@ node * populateTokenList(char* filepath, bool noDuplicatesInList){
                 strcat(str, temp);
                 free(temp);
             } else if ((buffer == '\n' || buffer == ' ' || buffer == '\t') ){
-                printf("Adding [%s] to list\n", str);
+                //printf("Adding [%s] to list\n", str);
                 
                 if (noDuplicatesInList){
-                    if (strlen(str) != 0 && !listContainsAndUpdates(str, sort, 1)){
-                        strcpy(ptr->data, str);
-                        ptr->occurrences++;
-                        node * temp = malloc(sizeof(node));
-                        temp->data = malloc(sizeof(char) * 1000);
-                        temp->code = malloc(sizeof(char) * 1000);
-                        temp->occurrences = 0;
-                        bzero(temp->data, sizeof(char) * 1000);
-                        bzero(temp->code, sizeof(char) * 1000);
-                        temp->prev = ptr;
-                        temp->next = NULL;
-                        ptr->next = temp;
-                        ptr = ptr->next;
-                        bzero(str, sizeof(char) * 1000);
+                    if (strlen(str) != 0 && !searchHashtableAndUpdate(str, 1)){
+                        //printf("Adding word [%s]\n", str);
+                        insertHashtable(str, 1, "");
                     }
-
-                    char* tempstr = malloc(sizeof(char) * 1000);
+                    bzero(str, sizeof(char) * sizeofstring);
+                    char* tempstr = malloc(sizeof(char) * 3);
                     if (buffer == '\n'){
-                        tempstr[0] = '\\';
+                        tempstr[0] = escapecharacter;
                         tempstr[1] = 'n';
                         tempstr[2] = '\0';
                     } else if(buffer == '\t'){
-                        tempstr[0] = '\\';
+                        tempstr[0] = escapecharacter;
                         tempstr[1] = 't';
                         tempstr[2] = '\0';
                     } else {
                         tempstr[0] = buffer;
                         tempstr[1] = '\0';
                     }
-                    if (!listContainsAndUpdates(tempstr, sort, 1)){
-                        strcpy(ptr->data, tempstr);
-                        ptr->occurrences++;
-                        node * temp = malloc(sizeof(node));
-                        temp->data = malloc(sizeof(char) * 1000);
-                        temp->code = malloc(sizeof(char) * 1000);
-                        temp->occurrences = 0;
-                        bzero(temp->data, sizeof(char) * 1000);
-                        bzero(temp->code, sizeof(char) * 1000);
-                        temp->prev = ptr;
-                        temp->next = NULL;
-                        ptr->next = temp;
-                        ptr = ptr->next;
+                    if (!searchHashtableAndUpdate(tempstr, 1)){
+                        insertHashtable(tempstr, 1, "");
                     }
                     free(tempstr);
-                } else {
+                } else {                   
                     if (strlen(str) != 0){
                         strcpy(ptr->data, str);
                         ptr->occurrences++;
                         node * temp = malloc(sizeof(node));
-                        temp->data = malloc(sizeof(char) * 1000);
-                        temp->code = malloc(sizeof(char) * 1000);
+                        temp->data = malloc(sizeof(char) * sizeofstring);
+                        temp->code = malloc(sizeof(char) * sizeofstring);
                         temp->occurrences = 0;
-                        bzero(temp->data, sizeof(char) * 1000);
-                        bzero(temp->code, sizeof(char) * 1000);
+                        bzero(temp->data, sizeof(char) * sizeofstring);
+                        bzero(temp->code, sizeof(char) * sizeofstring);
                         temp->prev = ptr;
                         temp->next = NULL;
                         ptr->next = temp;
                         ptr = ptr->next;
-                        bzero(str, sizeof(char) * 1000);
+                        bzero(str, sizeof(char) * sizeofstring);
                     }
 
-                    char* tempstr = malloc(sizeof(char) * 1000);
+                    char* tempstr = malloc(sizeof(char) * 3);
                     if (buffer == '\n'){
-                        tempstr[0] = '\\';
+                        tempstr[0] = escapecharacter;
                         tempstr[1] = 'n';
                         tempstr[2] = '\0';
                     } else if(buffer == '\t'){
-                        tempstr[0] = '\\';
+                        tempstr[0] = escapecharacter;
                         tempstr[1] = 't';
                         tempstr[2] = '\0';
                     } else {
@@ -473,42 +636,136 @@ node * populateTokenList(char* filepath, bool noDuplicatesInList){
                     strcpy(ptr->data, tempstr);
                     ptr->occurrences++;
                     node * temp = malloc(sizeof(node));
-                    temp->data = malloc(sizeof(char) * 1000);
-                    temp->code = malloc(sizeof(char) * 1000);
+                    temp->data = malloc(sizeof(char) * sizeofstring);
+                    temp->code = malloc(sizeof(char) * sizeofstring);
                     temp->occurrences = 0;
-                    bzero(temp->data, sizeof(char) * 1000);
-                    bzero(temp->code, sizeof(char) * 1000);
+                    bzero(temp->data, sizeof(char) * sizeofstring);
+                    bzero(temp->code, sizeof(char) * sizeofstring);
+                    temp->prev = ptr;
+                    temp->next = NULL;
+                    ptr->next = temp;
+                    ptr = ptr->next;
+                    free(tempstr);                    
+                }
+            }        
+        }
+        bufferread = 0;
+        /*
+        if (readed != 0){
+            if (buffer != ' ' && buffer != '\n' && buffer != '\t'){
+                char* temp = malloc(sizeof(char) * 2);
+                temp[0] = buffer;
+                temp[1] = '\0';
+                strcat(str, temp);
+                free(temp);
+            } else if ((buffer == '\n' || buffer == ' ' || buffer == '\t') ){
+                //printf("Adding [%s] to list\n", str);
+                
+                if (noDuplicatesInList){
+                    if (strlen(str) != 0 && !searchHashtableAndUpdate(str, 1)){
+                        //printf("Adding word [%s]\n", str);
+                        insertHashtable(str, 1, "");
+                        
+                        
+                    }
+                    bzero(str, sizeof(char) * sizeofstring);
+                    char* tempstr = malloc(sizeof(char) * 3);
+                    if (buffer == '\n'){
+                        tempstr[0] = escapecharacter;
+                        tempstr[1] = 'n';
+                        tempstr[2] = '\0';
+                    } else if(buffer == '\t'){
+                        tempstr[0] = escapecharacter;
+                        tempstr[1] = 't';
+                        tempstr[2] = '\0';
+                    } else {
+                        tempstr[0] = buffer;
+                        tempstr[1] = '\0';
+                    }
+                    if (!searchHashtableAndUpdate(tempstr, 1)){
+                        insertHashtable(tempstr, 1, "");
+                        
+                    }
+                    free(tempstr);
+                } else {
+                    
+                    if (strlen(str) != 0){
+                        strcpy(ptr->data, str);
+                        ptr->occurrences++;
+                        node * temp = malloc(sizeof(node));
+                        temp->data = malloc(sizeof(char) * sizeofstring);
+                        temp->code = malloc(sizeof(char) * sizeofstring);
+                        temp->occurrences = 0;
+                        bzero(temp->data, sizeof(char) * sizeofstring);
+                        bzero(temp->code, sizeof(char) * sizeofstring);
+                        temp->prev = ptr;
+                        temp->next = NULL;
+                        ptr->next = temp;
+                        ptr = ptr->next;
+                        bzero(str, sizeof(char) * sizeofstring);
+                    }
+
+                    char* tempstr = malloc(sizeof(char) * 3);
+                    if (buffer == '\n'){
+                        tempstr[0] = escapecharacter;
+                        tempstr[1] = 'n';
+                        tempstr[2] = '\0';
+                    } else if(buffer == '\t'){
+                        tempstr[0] = escapecharacter;
+                        tempstr[1] = 't';
+                        tempstr[2] = '\0';
+                    } else {
+                        tempstr[0] = buffer;
+                        tempstr[1] = '\0';
+                    }
+                    strcpy(ptr->data, tempstr);
+                    ptr->occurrences++;
+                    node * temp = malloc(sizeof(node));
+                    temp->data = malloc(sizeof(char) * sizeofstring);
+                    temp->code = malloc(sizeof(char) * sizeofstring);
+                    temp->occurrences = 0;
+                    bzero(temp->data, sizeof(char) * sizeofstring);
+                    bzero(temp->code, sizeof(char) * sizeofstring);
                     temp->prev = ptr;
                     temp->next = NULL;
                     ptr->next = temp;
                     ptr = ptr->next;
                     free(tempstr);
+                    
                 }
             }
+            
         }
+        */
     } while(readed != 0);
     //Delete the last node since it will always be empty
     free(str);
-    node * temp = ptr;
-    ptr = ptr->prev;
-    if (ptr == NULL){
-        //That means nothing was put in the list
-        printf("The file given is empty or no values were given, EXITTING PROGRAM\n");
-        freelist(sort);
-        return;
+    
+    if (!noDuplicatesInList){
+        node * temp = ptr;
+        ptr = ptr->prev;
+        if (ptr == NULL){
+            //That means nothing was put in the list
+            printf("The file given is empty or no values were given, EXITTING PROGRAM\n");
+            freelist(sort);
+            
+            return NULL;
 
+        }
+        ptr->next = NULL;
+        //Free temp
+        temp->prev = NULL;
+        free(temp->data);
+        free(temp->code);
+        free(temp);
     }
-    ptr->next = NULL;
-    //Free temp
-    temp->prev = NULL;
-    free(temp->data);
-    free(temp->code);
-    free(temp);
+    
     return sort;
 }
 
 
-void addTokenListToHeap(node * ptr){
+void addTokenListToHeap(){
+    /*
     while (ptr != NULL){
         HeapNode* temp = malloc(sizeof(HeapNode));
         temp->occurrences = ptr->occurrences;
@@ -519,10 +776,28 @@ void addTokenListToHeap(node * ptr){
         insert(temp);
         ptr = ptr->next;
     }
+    */
+   
+    int i;
+    for (i = 0; i < sizeofHashTable; i++) {
+        if (hashtable[i].occurrences > 0){
+            HeapNode* temp = malloc(sizeof(HeapNode));
+            temp->str = malloc(sizeof(char) * sizeofstring);
+            strcpy(temp->str, hashtable[i].str);
+            temp->occurrences = hashtable[i].occurrences;
+            temp->left = NULL;
+            temp->right = NULL;
+            insert(temp);
+            free(temp->str);
+            free(temp);
+        }
+    }
+    
 }
 
 void buildHuffmanTree(){
     //char* str = malloc(sizeof(char) * 256);
+    
     while (heapHasMoreThanOne()){
         //printMinHeap();
         //bzero(str, 256);
@@ -542,8 +817,8 @@ void buildHuffmanTree(){
             //exit(1);
         }
         */
-        strcat(third->str, first->str);
-        strcat(third->str, second->str);
+        //strcat(third->str, first->str);
+        //strcat(third->str, second->str);
         third->occurrences = first->occurrences + second->occurrences;
         third->left = first;
         third->right = second;
@@ -552,6 +827,7 @@ void buildHuffmanTree(){
         //printf("Post third node\n");
         insert(third);
     }
+   
 }
 
 void printHuffmanCode(HeapNode* temp, char* str, int fd){
@@ -618,10 +894,7 @@ void addToTotolList(node * ptr2){
 
 void recursiveCodeBook(char* filepath){
     if (!isDirectory(filepath)){
-        node * tokenList;
-        tokenList = populateTokenList(filepath, true);
-        addToTotolList(tokenList);
-        freelist(tokenList);
+        populateTokenList(filepath, true);
     }
 
 }
@@ -629,7 +902,9 @@ void recursiveCodeBook(char* filepath){
 void writeHuffmanCode(){
         int fd = open("./HuffmanCodebook", O_WRONLY | O_CREAT, 00600);
         char* str = malloc(sizeof(char) * 1000);
-        strcpy(str, "\\\n");
+        str[0] = escapecharacter;
+        str[1] = '\n';
+        str[3] = '\0';
         int wrote = 0;
         int read = 0;
         do {
@@ -657,26 +932,53 @@ void sizeofLargestToken(){
     sizeofstring *= numOfItems;
 }
 
+void freeHeapRecursively(HeapNode* ptr){
+    if (ptr == NULL) return;
+
+    freeHeapRecursively(ptr->left);
+    freeHeapRecursively(ptr->right);
+
+    free(ptr->str);
+    free(ptr);
+}
+
+void freeHeap(){
+    int i;
+    HeapNode* temp = heap->items;
+    freeHeapRecursively(temp->left);
+    freeHeapRecursively(temp->right);
+    for (i = 0; i < heap->size; i++)
+    {
+        free(temp->str);
+    }
+    free(heap->items);
+    free(heap);    
+}
+
 void buildCodeBook(char* filepath, bool recursive){
+    intializeMinHeap();
+    intializeHashTable();
     if (recursive){
         recursiveBehavior(filepath, recursiveCodeBook, true);
-        totalItems = totalItems->next; //Because the first node in totalItems is always going to be empty
+         //Because the first node in totalItems is always going to be empty
     } else if (isDirectory(filepath)){
         recursiveBehavior(filepath, recursiveCodeBook, false);
-        totalItems = totalItems->next;
     } else {
-        totalItems = populateTokenList(filepath, true);
+        populateTokenList(filepath, true);
     }
-    sizeofLargestToken();
-    intializeMinHeap();
-    addTokenListToHeap(totalItems);
+    //sizeofLargestToken();
+    addTokenListToHeap();
     buildHuffmanTree();
     writeHuffmanCode();
-    freelist(totalItems);
+    //freelist(totalItems);
+    //freeHeap();
+    freeHash(hashtable, sizeofHashTable);
     //FREE minheap
 }
 
 void convertCodebook(char* filepath){
+ 
+    /*
     totalItems = malloc(sizeof(node));
     totalItems->code = malloc(sizeof(char) * 1000);
     totalItems->data = malloc(sizeof(char) * 1000);
@@ -684,6 +986,8 @@ void convertCodebook(char* filepath){
     totalItems->next = NULL;
     totalItems->prev = NULL;
     node * ptr = totalItems;
+    */
+    intializeHashTable();
     int fd = open(filepath, O_RDONLY);
 	if (fd == -1){
         printf("Error opening codebook, EXITTING PROGRAM\n");
@@ -699,14 +1003,14 @@ void convertCodebook(char* filepath){
     bool codeChecked = false;
     bool emptyFileCheck = true;
     //Throw away escape characters
-    read(fd, &buffer, 1); //Throws away "\\"
+    read(fd, &escapecharacter, 1); //Throws away "\\"
     read(fd, &buffer, 1); //Throws away "\n"
     do {
         readed = read(fd, &buffer, 1);
         if (emptyFileCheck){
             if (readed == 0) { //First check of file and the file is empty
                 printf("The file given is empty, EXITTING PROGRAM\n");
-                freelist(totalItems);
+                //freelist(totalItems);
                 free(str);
                 return;
             } else {
@@ -723,6 +1027,9 @@ void convertCodebook(char* filepath){
             char temp[2] = {buffer, '\0'};
             strcat(str, temp);
         } else if (buffer == '\n'&& strlen(code) != 0 && strlen(str) != 0){
+            //printf("Adding word [%s] with code [%s]\n", str, code);
+            insertHashtable(str, 1, code);
+            /*
             strcpy(ptr->code, code);
             strcpy(ptr->data, str);
             node * temp = malloc(sizeof(node));
@@ -733,11 +1040,14 @@ void convertCodebook(char* filepath){
             temp->prev = ptr;
             ptr->next = temp;
             ptr = ptr->next;
+            */
             bzero(code, sizeof(char) * 1000);
             bzero(str, sizeof(char) * 1000);
+            
             codeChecked = false;
         }
     } while (readed != 0);
+    /*
     node * temp = ptr;
     ptr = ptr->prev;
     ptr->next = NULL;
@@ -747,10 +1057,13 @@ void convertCodebook(char* filepath){
     free(temp);
     free(str);
     free(code);
+    */
     close(fd);
+    
 }
 
 char* getCode(char* str){
+    /*
     node * ptr = totalItems;
     while (ptr != NULL){
         if (strcmp(ptr->data, str) == 0){
@@ -758,10 +1071,21 @@ char* getCode(char* str){
         }
         ptr = ptr->next;
     }
-    return NULL;
+    */
+    Hashnode* ptr = searchHashtable(str);
+    if (ptr != NULL){
+        char* result = ptr->code;
+        free(ptr->str);
+        free(ptr);
+        return result;
+    } else {
+        return NULL;
+    }    
 }
 
 void applyCodebookToCompress(node* list){
+   
+
     while (list != NULL){
         char* code = getCode(list->data);
         if (code == NULL){
@@ -771,9 +1095,11 @@ void applyCodebookToCompress(node* list){
         strcpy(list->code, code);
         list = list->next;
     }
+    
 }
 
 void printCode(node* ptr, char* filepath){
+   
     int fd = open(filepath, O_WRONLY | O_CREAT, 00600);
     if (fd == -1){
         printf("Something went wrong with opening file [%s]\n", filepath);
@@ -792,14 +1118,16 @@ void printCode(node* ptr, char* filepath){
     }
     //printf("\n");
     close(fd);
+    
 }
 
+
 void recursiveCompress(char* filepath){
-    if (!isDirectory(filepath) && !isFile(filepath)){
+    if (!isDirectory(filepath) && !isFile(filepath) && strcmp(filepath, "./HuffmanCodebook") != 0 && strcmp(filepath, ".//HuffmanCodebook") != 0){
         node * tokenList;
         tokenList = populateTokenList(filepath, false);
         applyCodebookToCompress(tokenList);
-        char* hczfile = malloc(sizeof(char) * 1000);
+        char* hczfile = malloc(sizeof(char) * 4096);
         strcpy(hczfile, filepath);
         strcat(hczfile, ".hcz");
         printCode(tokenList, hczfile);
@@ -834,32 +1162,24 @@ void printTree(HeapNode* ptr){
     }
 }
 
-void createDecompressedFile(char* file, char* output){
-    int fd = open(file, O_WRONLY | O_CREAT, 00600);
-    if (fd == -1){
-        printf("Something went wrong with opening file in createDecompressFile[%s]\n", file);
-        exit(1);
-    }
-    int read = 0;
-    int wrote = 0;
-    do {
-        wrote = write(fd, output+read, strlen(output)-read);
-        read += wrote;
-    } while (wrote != 0);
-}
-
 void recursiveDecompress(char* filepath){
-    char* result = malloc(sizeof(char) * 50000);
-    bzero(result, sizeof(char) * 50000);
     if (isFile(filepath)){
         int fd = open(filepath, O_RDONLY);
         if (fd == -1){
             printf("Error opening filename [%s] in decompress process\n", filepath);
             exit(1);
         }
+        deleteLatestFilePath(filepath, "hcz");
+        int newfd = open(filepath, O_WRONLY | O_CREAT, 00600);
+        if (fd == -1){
+            printf("Something went wrong with opening file in recursive decompress[%s]\n", filepath);
+            exit(1);
+        }
         char buffer = '!';
         int readed = 0;
         bool emptyFileCheck = true;
+        int newreaded = 0;
+        int wrote = 0;
         HeapNode* ptr = codeTree;
         do {
             readed = read(fd, &buffer, 1);
@@ -887,46 +1207,83 @@ void recursiveDecompress(char* filepath){
                 if (strlen(ptr->str) != 0){
                     //Hit the leaf
 
-                    if (ptr->str[0] == '\\' && ptr->str[1] == 'n'){
-                        strcat(result, "\n");
-                        //printf("\n", ptr->str);
-                    } else if (ptr->str[0] == '\\' && ptr->str[1] == 't'){
-                        strcat(result, "\t");
-                        //printf("\t", ptr->str);
+                    if (ptr->str[0] == escapecharacter && ptr->str[1] == 'n'){
+                        write(newfd, "\n", 1);
+                        printf("\n", ptr->str);
+                    } else if (ptr->str[0] == escapecharacter && ptr->str[1] == 't'){
+                        write(newfd, "\t", 1);
+                        printf("\t", ptr->str);
                     } else {
-                        strcat(result, ptr->str);
-                        //printf("%s", ptr->str);
+                        do{
+                            wrote = write(newfd, ptr->str+newreaded, strlen(ptr->str)-newreaded);
+                            newreaded += wrote;
+                        } while(wrote > 0);
+                        newreaded = 0;
+                        printf("%s", ptr->str);
                     }
-
-                    //printf("%s", ptr->str);
-
                     ptr = codeTree;
                 }
             }
         } while (readed != 0);
-        deleteLatestFilePath(filepath, "hcz");
-        createDecompressedFile(filepath,result);
         strcat(filepath, ".hcz");
-        //printf("\n");
         close(fd);
+        close(newfd);
     }
-    free(result);
+    
 
 }
 
 void convertCodebookToTree(char* codebookfilepath){
     convertCodebook(codebookfilepath);
-    node* ptr = totalItems;
-
+    //node* ptr = totalItems;
+   
     codeTree = malloc(sizeof(node));
-    codeTree->str = malloc(sizeof(char) * 1000);
-    bzero(codeTree->str, sizeof(char) * 1000);
+    codeTree->str = malloc(sizeof(char) * sizeofstring);
+    bzero(codeTree->str, sizeof(char) * sizeofstring);
     codeTree->occurrences = 0;
     codeTree->left = NULL;
     codeTree->right = NULL;
 
     HeapNode* treeptr = codeTree;
+    int j;
+    for (j = 0; j < sizeofHashTable; j++) {
+        if (hashtable[j].occurrences == 1){
+            char* str = hashtable[j].str;
+            char* code = hashtable[j].code;
 
+            int i;
+            for (i = 0; i < strlen(code); i++){
+                if (code[i] == '0'){
+                    if (treeptr->left == NULL){
+                        HeapNode* temp = malloc(sizeof(node));
+                        temp->str = malloc(sizeof(char) * sizeofstring);
+                        bzero(temp->str, sizeof(char) * sizeofstring);
+                        temp->occurrences = 0;
+                        temp->left = NULL;
+                        temp->right = NULL;
+                        treeptr->left = temp;
+                    }
+                    treeptr = treeptr->left;
+                } else if (code[i] == '1'){
+                    if (treeptr->right == NULL){
+                        HeapNode* temp = malloc(sizeof(node));
+                        temp->str = malloc(sizeof(char) * sizeofstring);
+                        bzero(temp->str, sizeof(char) * sizeofstring);
+                        temp->occurrences = 0;
+                        temp->left = NULL;
+                        temp->right = NULL;
+                        treeptr->right = temp;
+                    }
+                    treeptr = treeptr->right;
+                }
+            }
+            strcpy(treeptr->str, str);
+            treeptr = codeTree;
+        }
+    }
+   
+
+    /*
     while (ptr != NULL){
         char* str = ptr->data;
         char* code = ptr->code;
@@ -961,6 +1318,7 @@ void convertCodebookToTree(char* codebookfilepath){
         treeptr = codeTree;
         ptr = ptr->next;
     }
+    */
 
 
 
@@ -1002,6 +1360,19 @@ bool containsHuffmanpPath(char* str){
 
 
 int main(int argc, char** argv){
+    /*
+    insertHashtable("Hello", 2, "");
+    insertHashtable("World", 4, "0100");
+    insertHashtable("This", 5, "");
+    insertHashtable("is", 3, "");
+    insertHashtable("amazing", 1, "");
+    insertHashtable("coolbeans", 2, "");
+    //insertHashtable("chips", 1);
+
+    Hashnode* temp = searchHashtable("World");
+
+    printf("Found str: [%s], Found code [%s], with items: [%d], and sizeof table is [%d]\n", temp->str, temp->code, itemsInHashTable, sizeofHashTable);
+    */
     bool recursive = false;
     bool codeBook = false;
     bool compress = false;

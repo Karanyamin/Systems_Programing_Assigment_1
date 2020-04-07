@@ -1,0 +1,107 @@
+Assignment 1 — TEST PLAN
+Karan Amin
+Saavi Dhingra
+
+This document details all the test-cases we used to rid our program of errors and showcase the different scenarios in how to use the compression and decompression.
+
+——————————————————————————————————————————
+
+repeats.txt: This document has This many document repeats This
+
+Command run: ./fileCompressor -b ./repeats.txt
+
+Produces ./HuffmanCodebook:
+!
+0	 
+100	document
+1010	has
+1011	repeats
+1100	
+
+1101	many
+111	This
+
+Command run: ./fileCompressor -c ./repeats.txt ./HuffmanCodebook
+
+Produces: ./repreats.txt.hcz
+
+11101000101001110110101000101101111100
+
+Command run: ./fileCompressor -d ./repeats.txt ./HuffmanCodebook
+
+Produces ./repeats.txt
+This document has This many document repeats This
+
+Purpose: This test was to show how to use the fileCompressor on a basic .txt file without any recursive behavior. Note that the escape character we used is “!”. This test case shows the most basic and general use of the program. It builds a Huffman Codebook based on a simple 8 word file that has many repeating words to show the power of compression on the file size. The original file has 50 characters with 8 bytes to represent each character for a total space of 400 bytes to store the file. The compressed .hcz file is only 38 characters with 8 bytes per character for a total of 304 bytes, a significant reduction in size.
+
+——————————————————————————————————————————
+
+Directory Tree
+firstsub
+	firstfirstsub
+		firstfirstsub1.txt
+	firstsub1.txt
+	firstsub2.txt
+secondsub 
+fileCompressor
+fileCompressor.c
+spaces.txt
+firstfirstsub1.txt: I am in the first first directory first file
+firstsub1.txt: I am in the first sub directory in the first text
+firstsub2.txt: I am in the first directory with more random text.
+firstCompressor.c: File too large to show here but it is the source file
+spaces.txt: THis file \n has spaces.
+
+Command run: ./fileCompressor -R -b ./
+
+Produces a ./HuffmanCodebook in the current working directory
+!
+0	 
+100000	text
+100001	\n
+100010	sub
+100011	with
+100100	text.
+100101	more
+100110	spaces.
+100111	has
+1010	the
+1011	in
+1100	
+
+11010	directory
+11011	I
+1110	first
+11110	am
+1111100	THis
+1111101	random
+111111	file
+
+
+Command run ./fileCompressor -c -R ./ ./HuffmanCodebook
+
+Produces all the .txt files above with a .hcz extension in the same directory right beside it
+
+firstfirstsub1.txt.hcz: 11011011110010110101001110011100110100111001111111100
+firstsub1.txt.hcz:11011011110010110101001110010001001101001011010100111001000001100
+firstsub2.txt.hcz: 11011011110010110101001110011010010001101001010111110101001001100
+spaces.txt.hcz: 111110001111110100001010011101001101100
+
+Command run ./fileCompressor -d -R ./ ./HuffmanCodebook
+
+Produces the original .txt files with the original output. Omitting output here for brevity. 
+Example produces firstfirstsub1.txt: I am in the first first directory first file
+
+Purpose: This test case showcases the recursive nature of this fileCompressor and how it can go down a given file path and all the subdirectories within it and apple the codebook compress and decompress functionality.
+
+——————————————————————————————————————————
+
+
+Command given: ./fileCompressor -b -R ./ or ./fileCompressor -R -b ./ 
+
+Purpose
+Will both produces the same output, the order of the flags is not important, but it is important to ONLY have two flags, if more than 2 flags are given it will first prioritize building a codebook if -b was given, if not then it will prioritize compressing the file if -c was given and finally it will default to decompressing if -d is given. If neither of those or -R are given then the program will throw an invalid flag error.
+
+ 
+
+
